@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resolutionSelect = document.getElementById('resolution-select');
     const winModeRadios = document.querySelectorAll('input[name="winMode"]');
 
-    // 【NEW】聊天室畫面元素
+    // 聊天室畫面元素
     const chatView = document.getElementById('chat-view');
     const goToChatViewButton = document.getElementById('go-to-chat-view');
     const closeChatViewButton = document.getElementById('close-chat-view');
@@ -45,11 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatUserCount = document.getElementById('chat-user-count');
     const chatUserList = document.getElementById('chat-users');
     const chatMessages = document.getElementById('chat-messages');
-    // 【MODIFICATION START】: Get new message input element and remove old ones
     const chatMessageInput = document.getElementById('chat-message-input');
-    // 【MODIFICATION END】
     const chatSendButton = document.getElementById('chat-send-button');
 
+    // 公告彈出視窗元素
+    const announcementModalView = document.getElementById('announcement-modal-view');
+    const goToPublishViewButton = document.getElementById('go-to-publish-view-button');
+    const closeAnnouncementModalButton = document.getElementById('close-announcement-modal-button');
+    const modalAnnouncementTitle = document.getElementById('modal-announcement-title');
+    const modalAnnouncementContent = document.getElementById('modal-announcement-content');
 
     // --- 應用程式狀態 ---
     const state = {
@@ -61,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
         defaultPathExists: false,
         plusExists: false,
         plusUpExists: false,
-        // 【NEW】聊天室狀態
         chatSocket: null,
         chatProfile: {
             nickname: 'Player' + Math.floor(1000 + Math.random() * 9000),
@@ -74,16 +77,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UI 輔助函式 ---
     const showView = (viewId) => {
-        // 隱藏所有主視圖
         homeView.style.display = 'none';
         optimizeView.style.display = 'none';
 
-        // 【修正】確保在切換主視圖 (Home/Optimize) 時，會關閉所有覆蓋型視窗 (如聊天室、解析度設定)
-        // 這樣可以避免多個視圖同時顯示，導致的版面混亂或 "崩潰"
+        // 確保在切換主視圖時，會關閉所有覆蓋型視窗
         if (chatView) chatView.style.display = 'none';
         if (resolutionView) resolutionView.style.display = 'none';
+        if (announcementModalView) announcementModalView.style.display = 'none'; 
 
-        // 顯示目標主視圖
         const targetView = document.getElementById(viewId);
         if (targetView) {
             targetView.style.display = 'block';
@@ -256,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (data.needAdmin) {
                     handlePermissionError(data.error);
                 } else {
-                    showToast(`${actionText}失敗: ${data.error || '未知錯誤'}`, 'error');
+                    showToast(`${actionText}失败: ${data.error || '未知错误'}`, 'error');
                 }
             } catch (error) {
                 showToast('請求失敗，請檢查網路連線或後端服務。', 'error');
@@ -429,7 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (savedProfile) {
             state.chatProfile = JSON.parse(savedProfile);
         }
-        // Apply loaded profile to the UI
         chatNickname.value = state.chatProfile.nickname;
         chatAvatar.value = state.chatProfile.avatar;
         chatHideAvatar.checked = state.chatProfile.hideAvatar;
@@ -453,7 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.chatSocket.onopen = () => {
             console.log('Chat WebSocket connected.');
             showToast('已連接至聊天室', 'success');
-            // Send initial profile info
             sendChatProfileUpdate();
         };
 
@@ -529,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const startSendCooldown = () => {
         let remaining = 60;
         chatSendButton.disabled = true;
-        chatMessageInput.disabled = true; // Also disable input
+        chatMessageInput.disabled = true;
 
         clearInterval(state.sendCooldownInterval);
         state.sendCooldownInterval = setInterval(() => {
@@ -539,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 clearInterval(state.sendCooldownInterval);
                 chatSendButton.disabled = false;
-                chatMessageInput.disabled = false; // Re-enable input
+                chatMessageInput.disabled = false;
                 chatSendButton.textContent = '傳送';
             }
         }, 1000);
@@ -628,15 +627,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 【NEW】聊天室事件處理
+    // 聊天室事件處理
     goToChatViewButton.addEventListener('click', () => {
         chatView.style.display = 'flex';
         connectChat();
     });
     closeChatViewButton.addEventListener('click', () => {
         chatView.style.display = 'none';
-        // Optional: disconnect WebSocket when closing
-        // if (state.chatSocket) state.chatSocket.close();
     });
     chatUpdateProfileButton.addEventListener('click', () => {
         saveChatProfile();
@@ -644,7 +641,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('個人設定已更新', 'success');
     });
 
-    // 【MODIFICATION START】: Updated chat send logic
     const sendChatMessage = () => {
         const messageContent = chatMessageInput.value.trim();
 
@@ -659,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 content: messageContent,
             };
             state.chatSocket.send(JSON.stringify(payload));
-            chatMessageInput.value = ''; // Clear input after sending
+            chatMessageInput.value = '';
             startSendCooldown();
         } else {
             showToast('無法發送訊息，未連接到伺服器', 'error');
@@ -669,30 +665,53 @@ document.addEventListener('DOMContentLoaded', () => {
     chatSendButton.addEventListener('click', sendChatMessage);
 
     chatMessageInput.addEventListener('keydown', (e) => {
-        // If Enter is pressed and the button is not on cooldown
         if (e.key === 'Enter' && !chatSendButton.disabled) {
-            e.preventDefault(); // Prevents new line in some inputs
+            e.preventDefault();
             sendChatMessage();
         }
     });
-    // 【MODIFICATION END】
+
+    // 公告彈出視窗的事件處理
+    if (goToPublishViewButton) {
+        goToPublishViewButton.addEventListener('click', () => {
+            const announcementData = {
+                title: "公告 : 新增房間背景樣式",
+                content: "新增了情人節應景的房間背景樣式 , 感興趣的用戶可至優化專區點擊安裝。"
+            };
+
+            if (announcementModalView) {
+                modalAnnouncementTitle.textContent = announcementData.title;
+                modalAnnouncementContent.textContent = announcementData.content;
+                announcementModalView.style.display = 'flex';
+            }
+        });
+    }
+
+    if (closeAnnouncementModalButton) {
+        closeAnnouncementModalButton.addEventListener('click', () => {
+            announcementModalView.style.display = 'none';
+        });
+    }
+
+    if (announcementModalView) {
+        announcementModalView.addEventListener('click', (e) => {
+            if (e.target === announcementModalView) {
+                announcementModalView.style.display = 'none';
+            }
+        });
+    }
 
     // 主畫面按鈕
     homeGrid.addEventListener('click', async (e) => {
         const launchBtn = e.target.closest('.launch-button');
         if (launchBtn) {
-            // --- 【錯誤修正】 ---
-            // 錯誤原因：原本的程式碼試圖在 launchBtn (按鈕) 內部尋找 .card-title (標題)，但它們是兄弟元素。
-            // 修正方法：先找到共同的父層 .home-card，然後再從父層往下尋找 h2 標題元素。
             const parentCard = launchBtn.closest('.home-card');
-            if (!parentCard) return; // 安全檢查：如果找不到父層卡片，則不執行後續操作
+            if (!parentCard) return;
 
-            const originalTextElement = parentCard.querySelector('h2'); // 在父層卡片中尋找 h2 標題
-            if (!originalTextElement) return; // 安全檢查：如果找不到標題元素，也中止
-            // --- 修正結束 ---
+            const originalTextElement = parentCard.querySelector('h2');
+            if (!originalTextElement) return;
 
-            // --- 【整合】防呆機制開始 ---
-            if (launchBtn.disabled) return; // 如果按鈕已禁用，則不執行任何操作
+            if (launchBtn.disabled) return;
 
             launchBtn.disabled = true;
             const originalText = originalTextElement.textContent;
@@ -709,7 +728,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     originalTextElement.textContent = originalText;
                 }
             }, 1000);
-            // --- 防呆機制結束 ---
 
             const mode = launchBtn.dataset.mode;
             showToast(`正在發出 ${mode.toUpperCase()} 模式啟動命令...`, 'info');
@@ -722,7 +740,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('已發出啟動命令。', 'success');
             } catch(err) {
                 showToast(`啟動失敗: ${err.message}`, 'error');
-                // 如果啟動失敗，立即重置按鈕狀態
                 clearInterval(intervalId);
                 launchBtn.disabled = false;
                 originalTextElement.textContent = originalText;
@@ -804,6 +821,21 @@ document.addEventListener('DOMContentLoaded', () => {
         previewPanel.style.display = 'none';
     });
 
+    // --- 【新增的函式】啟動時顯示公告 ---
+    const showAnnouncementOnStartup = () => {
+        // 【注意】目前的公告內容是寫死在這裡的範例
+        const announcementData = {
+            title: "公告: 新增房間背景樣式",
+            content: "新增了情人節應景的房間背景樣式 , 感興趣的用戶可至優化專區點擊安裝。"
+        };
+
+        if (announcementModalView) {
+            modalAnnouncementTitle.textContent = announcementData.title;
+            modalAnnouncementContent.textContent = announcementData.content;
+            announcementModalView.style.display = 'flex';
+        }
+    };
+    
     // --- 應用程式初始化 ---
     const init = async () => {
         try {
@@ -831,6 +863,9 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetchAndRenderItems(initialCategory);
 
             loadChatProfile();
+
+            // 【新增的呼叫】在這裡執行，讓程式一啟動就顯示公告
+            showAnnouncementOnStartup();
 
         } catch (error) {
             console.error("初始化失敗:", error);

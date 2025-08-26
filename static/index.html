@@ -45,7 +45,7 @@
                 <h2>安裝優化項目</h2>
                 <p>可選擇房間、P線等優化安裝</p>
                 <div class="home-card-actions">
-                    <button id="go-to-optimize-view" class="primary-action-button">進入</button>
+                    <button id="go-to-optimize-view" class="primary-action-button">進入設定</button>
                 </div>
             </div>
 
@@ -60,15 +60,17 @@
                 <h2>揪咖一起玩</h2>
                 <p>可以發布消息讓在聊天室中找人一起玩。</p>
                 <div class="home-card-actions">
-                    <button id="go-to-chat-view" class="primary-action-button">進入</button>
+                    <button id="go-to-chat-view" class="primary-action-button">開始發布</button>
                 </div>
             </div>
-        </div>
-
-        <div class="announcement-container">
-            <div id="announcement-category">公告</div>
-            <div id="announcement-title">新增房間背景</div>
-            <div id="announcement-content">新增一款情人節應景的房間背景樣式<br>感興趣的可以到優化安裝選項內去安裝。</div>
+            
+            <div class="home-card" id="publish-announcement-card">
+                <h2>最新消息</h2>
+                <p>有任何新的消息或變動會放在這邊。</p>
+                <div class="home-card-actions">
+                    <button id="go-to-publish-view-button" class="primary-action-button">查看公告</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -127,6 +129,18 @@
             </div>
             <div class="modal-footer">
                 <button id="save-resolution-button" class="primary-action-button">儲存設定</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="announcement-modal-view" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-announcement-title"></h2>
+                <button id="close-announcement-modal-button" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-announcement-content"></p>
             </div>
         </div>
     </div>

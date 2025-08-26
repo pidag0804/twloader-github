@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
 
 :root {
-    --bg-color: #00010d;
+    --bg-color: #0d1117;
     --primary-color: #58a6ff;
     --primary-glow: rgba(88, 166, 255, 0.5);
     --secondary-color: #161b22;
@@ -13,7 +13,7 @@
     --warning-color: #ffc107;
     --card-bg: #161b22;
     --card-hover-glow: rgba(88, 166, 255, 0.2);
-    --warning-glow: rgba(255, 193, 7, 0.5); /* 新增黃色光暈變數 */
+    --warning-glow: rgba(255, 193, 7, 0.5); 
     
     /* 【MODIFIED】科技感風格變數 (改為高端金屬) */
     --tech-gold: #FFD700;
@@ -28,6 +28,10 @@
     --bio-blue: #1A237E;
     --bio-black: #121212;
     --bio-bg-transparent: rgba(57, 255, 20, 0.05);
+
+    /* 【新增】科技青藍色變數 */
+    --tech-cyan: #40E0D0;
+    --tech-cyan-glow: rgba(64, 224, 208, 0.6);
 }
 
 body {
@@ -47,28 +51,31 @@ body {
     margin: 0 auto;
 }
 
+#optimize-view {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
 .home-header {
     text-align: center;
     margin-bottom: 30px;
-    position: relative; /* 為了底線定位 */
+    position: relative; 
 }
 
-/* 【MODIFIED】標題霓虹燈風格 */
 .home-header h1 {
-    font-family: 'Orbitron', sans-serif; /* 使用科技感字體 */
-    font-size: 3.5em; /* 稍微放大字體 */
+    font-family: 'Orbitron', sans-serif; 
+    font-size: 3.5em; 
     color: #fff;
     text-shadow: 
         0 0 5px rgba(255, 255, 255, 0.8),
         0 0 10px var(--primary-color),
         0 0 20px var(--primary-color),
         0 0 35px var(--primary-color);
-    margin-bottom: 25px; /* 增加與底線的間距 */
-    padding-bottom: 15px; /* 增加與底線的間距 */
+    margin-bottom: 25px; 
+    padding-bottom: 15px; 
     position: relative;
 }
 
-/* 【NEW】標題霓虹燈底線 */
 .home-header h1::after {
     content: '';
     position: absolute;
@@ -77,7 +84,7 @@ body {
     transform: translateX(-50%);
     width: 80%;
     height: 2px;
-    background-color: #FF2D75; /* 霓虹粉紅色 */
+    background-color: #FF2D75; 
     box-shadow: 0 0 8px #FF2D75, 0 0 12px #FF2D75;
 }
 
@@ -126,7 +133,7 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
-    margin-bottom: 0; /* 【新增】強制移除卡片區塊下方的邊距 */
+    margin-bottom: 0; 
 }
 
 .home-card {
@@ -176,20 +183,18 @@ body {
     border: 1px solid transparent;
 }
 
-/* --- 【MODIFIED】: Updated button styles --- */
-/* 提高權重以確保樣式生效 */
 .home-card-actions .launch-button {
-    background-color: transparent; /* 透明背景 */
-    color: white; /* 白色粗體字 */
-    border: 1px solid var(--warning-color); /* 黃色邊框 */
+    background-color: transparent; 
+    color: white; 
+    border: 1px solid var(--warning-color); 
     font-weight: bold;
-    transition: all 0.3s ease; /* 增加平滑過渡效果 */
+    transition: all 0.3s ease; 
 }
 
 .home-card-actions .launch-button:hover {
-    background-color: var(--warning-color); /* 黃色實心 */
-    color: var(--bg-color); /* 黑色粗體字 */
-    border-color: var(--warning-color); /* 確保邊框顏色一致 */
+    background-color: var(--warning-color); 
+    color: var(--bg-color); 
+    border-color: var(--warning-color); 
     box-shadow: 0 0 10px var(--warning-glow);
 }
 
@@ -197,18 +202,18 @@ body {
 .home-card-actions .update-button {
     background-color: transparent;
     color: white;
-    border: 1px solid #40E0D0 !important;
+    border: 1px solid var(--tech-cyan) !important;
     transition: all 0.3s ease;
 }
 
-/* 滑鼠移上去時的樣式（實心蒂芬妮藍 + 白色字） */
 .update-button:hover {
-    background-color: #40E0D0;               /* 背景變成實心蒂芬妮藍 */
-    color: white;                            /* 保持白色文字 */
-    border-color: #40E0D0;                   /* 邊框顏色保持一致 */
+    background-color: var(--tech-cyan);               
+    color: white;                            
+    border-color: var(--tech-cyan);                   
 }
-/* --- End of modification --- */
 
+/* --- 【按鈕樣式修正：第一步】--- */
+/* --- 將 .primary-action-button 還原，確保 Modal 內的按鈕樣式正確 --- */
 .primary-action-button {
     background-color: var(--primary-color);
     color: var(--bg-color);
@@ -220,65 +225,23 @@ body {
     box-shadow: 0 0 10px var(--primary-glow);
 }
 
-/* ========================================================= */
-/* 【NEW & CORRECTED】: Styles for Announcement Section      */
-/* ========================================================= */
-.announcement-container {
-    position: relative;
-    width: 100%;
-    max-width: 1500px; /* 設定最大寬度為圖片原始寬度 */
-    margin: 30px auto 0; /* 在上方保留30px間距，並移除下方間距 */
-    
-    /* 【關鍵修正】移除固定高度，改用 aspect-ratio 維持圖片比例 */
-    /* height: 500px; <-- 移除這一行 */
-    aspect-ratio: 1500 / 500; /* 設定容器的寬高比為 1500:500 */
-
-    background-image: url('https://www.tlmoo.com/twloader/img/post001.png');
-    background-size: cover; /* 改用 cover，它會完美填滿有正確比例的容器 */
-    background-repeat: no-repeat;
-    background-position: center;
-    overflow: hidden;
+/* --- 【按鈕樣式修正：第二步】--- */
+/* --- 使用更高權重的選擇器，單獨修改主頁卡片中的主要按鈕 --- */
+.home-card-actions .primary-action-button {
+    background-color: transparent;
+    color: #FFFFFF; /* 純白色字體 */
+    border: 1px solid var(--tech-cyan); /* 科技青藍色邊框 */
 }
 
-/* 內容2: 公告分類 (使用百分比定位，以適應容器縮放) */
-#announcement-category {
-    position: absolute;
-    width: 28%;
-    left: 1%;
-    top: 40%; /* 將 top 設為 45% */
-    text-align: center;
-    font-size: 2em;
-    color: #FFFFFF;
-    font-weight: bold;
-    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+.home-card-actions .primary-action-button:hover {
+    background-color: var(--tech-cyan); /* 科技青藍色背景 */
+    color: #FFFFFF; /* 純白色字體 */
+    border-color: var(--tech-cyan); /* 確保邊框顏色一致 */
+    box-shadow: 0 0 15px var(--tech-cyan-glow); /* 發光效果 */
+    opacity: 1; /* 移除舊的透明度效果 */
 }
 
-/* 內容1: 公告標題 (使用百分比定位) */
-#announcement-title {
-    position: absolute;
-    top: 12%;   /* 將 top 設為 27% */
-    left: 35%;  /* 將 left 設為 20% */
-    width: 75%;
-    color: #FFFFFF;
-    font-size: 1.5em;
-    font-weight: bold;
-    text-shadow: 0 0 5px rgba(0,0,0,0.5);
-}
 
-/* 內容3: 公告內容 (使用百分比定位) */
-#announcement-content {
-    position: absolute;
-    top: 35%;   /* 將 top 設為 46% */
-    left: 35%;  /* 將 left 設為 20% */
-    width: 75%;
-    color: #FFFFFF;
-    font-size: 1.1em;
-    line-height: 1.5;
-    text-shadow: 0 0 3px rgba(0,0,0,0.5);
-    /* 確保文字能自動換行 */
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
 /* ========================================================= */
 /* 【STYLES FOR OPTIMIZE VIEW】                              */
 /* ========================================================= */
@@ -376,7 +339,7 @@ h1 {
 
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
 }
 
@@ -398,7 +361,7 @@ h1 {
 
 .card-image-container {
     width: 100%;
-    padding-top: 75%; /* 4:3 Aspect Ratio */
+    padding-top: 75%; 
     position: relative;
     background-color: #010409;
 }
@@ -641,7 +604,7 @@ h1 {
 }
 
 /* ========================================================= */
-/* 【NEW】: Styles for Resolution View (Bio-Mechanical Theme) */
+/* 【STYLES FOR MODAL VIEWS】                                */
 /* ========================================================= */
 #resolution-view .modal-content {
     background: linear-gradient(145deg, var(--bio-black), #2a2a2a);
@@ -673,9 +636,6 @@ h1 {
     opacity: 0.9;
 }
 
-/* ========================================================= */
-/* 【NEW】: Styles for Chat View (Luxury Tech Theme)         */
-/* ========================================================= */
 #chat-view .modal-content {
     max-width: 1200px;
     height: 80vh;
@@ -813,7 +773,6 @@ h1 {
     align-items: center;
 }
 
-/* 【MODIFIED】統一聊天室輸入框風格 */
 .team-up-form select,
 .team-up-form input,
 .chat-sidebar .form-group input[type="text"] {
@@ -834,7 +793,6 @@ h1 {
     box-shadow: 0 0 10px var(--tech-gold-glow);
 }
 
-/* 【MODIFIED】統一聊天室按鈕風格 */
 #chat-send-button,
 #chat-update-profile {
     grid-column: 1 / -1;
@@ -855,9 +813,6 @@ h1 {
     box-shadow: 0 0 15px var(--tech-gold-glow);
 }
 
-/* ========================================================= */
-/* 【NEW】: Styles for Tech Scrollbar                        */
-/* ========================================================= */
 .chat-sidebar::-webkit-scrollbar,
 #chat-messages::-webkit-scrollbar {
   width: 8px;
@@ -911,7 +866,6 @@ h1 {
     animation: slideIn 0.3s ease-out forwards;
 }
 
-/* Only non-persistent toasts should fade out */
 .toast:not(.persistent) {
     animation: slideIn 0.3s ease-out forwards, fadeOut 0.5s ease-in forwards 4.5s;
 }
@@ -920,7 +874,6 @@ h1 {
 .toast.error { border-left-color: var(--error-color); }
 .toast.warning { border-left-color: var(--warning-color); }
 
-/* Style for button inside a toast notification */
 .toast button {
     margin-left: 15px;
     padding: 5px 10px;
@@ -951,4 +904,19 @@ h1 {
 @media (max-width: 768px) {
     #preview-panel { display: none !important; }
     .card-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+
+/* --- 【新增】公告彈出視窗樣式 (風格一) --- */
+#announcement-modal-view .modal-content {
+    background-color: rgba(22, 27, 34, 0.85); 
+    backdrop-filter: blur(10px); 
+    border: 1px solid var(--primary-color); 
+    box-shadow: 0 0 25px var(--primary-glow); 
+}
+#announcement-modal-view .modal-header {
+    border-bottom: 1px solid var(--border-color);
+}
+#announcement-modal-view #modal-announcement-title {
+    color: var(--primary-color);
+    text-shadow: 0 0 8px var(--primary-glow);
 }
