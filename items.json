@@ -1,0 +1,541 @@
+package main
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sync"
+	"syscall"
+	"time"
+)
+
+/*
+README (使用說明)
+================================================================================
+TWLoaderWeb - 優化檔案安裝工具
+
+本應用程式提供一個基於網頁的圖形化使用者介面 (GUI)，用於下載並安裝 TWLoader
+的優化檔案。它會在您的本機執行一個伺服器，並開啟瀏覽器視窗讓您進行操作。
+
+---
+建置與執行指南
+---
+1. 將此程式碼儲存為 `main.go` 檔案。
+2. 在相同目錄下開啟 PowerShell 或命令提示字元 (CMD) 終端機。
+3. 初始化 Go 模組 (僅需執行一次):
+   go mod init twloaderweb
+4. 整理相依套件 (會下載所需的函式庫):
+   go mod tidy
+5. 建置單一執行檔。`-ldflags` 參數對於建立一個無主控台視窗的
+   Windows 應用程式非常重要。
+   go build -ldflags="-H=windowsgui -s -w" -o TWLoaderWeb.exe
+6. 執行應用程式:
+   ./TWLoaderWeb.exe
+
+程式將會啟動伺服器，並且您的預設瀏覽器會自動開啟控制面板頁面，
+網址為 http://127.0.0.1:8787。
+
+================================================================================
+*/
+
+// 前端檔案變數，將在執行時從網路獲取內容
+var indexHTML []byte
+var styleCSS []byte
+var scriptJS []byte
+
+const (
+	serverAddr     = "127.0.0.1:8787"
+	connectTimeout = 10 * time.Second
+	requestTimeout = 60 * time.Second
+	maxRetries     = 2
+	retryBaseDelay = 500 * time.Millisecond
+
+	// 加密後的 items.json URL (指向您的伺服器)
+	encryptionKey = "a_very_secret_key_for_twloader"
+	encryptedURL  = "FwEBDRYDDgd9GRsfFRcQDRhGSEsPGx8bAhwLGwYGBhwfEwJ4EhgfFRcMDR5GSEsPGx8bAgQLHAwJGRlZe3tqGRsfFRcMDR5GSEsPGx8bAhwLGwYGBg=="
+
+	// 前端靜態檔案的 URL (已更新為您的伺服器位置)
+	remoteIndexURL  = "http://tlmoo.com/twloader/down/index.html"
+	remoteStyleURL  = "http://tlmoo.com/twloader/down/style.css"
+	remoteScriptURL = "http://tlmoo.com/twloader/down/script.js"
+)
+
+var (
+	baseDirPlus   = filepath.Join(os.Getenv("ProgramFiles(x86)"), "TWLoader", "Plus", "edata")
+	baseDirPlusUP = filepath.Join(os.Getenv("ProgramFiles(x86)"), "TWLoader", "PlusUP", "edata")
+	logger        = log.New(os.Stdout, "TWLOADERWEB | ", log.LstdFlags)
+	installMutex  = &sync.Mutex{}
+)
+
+// --- 資料結構 ---
+type OptimizationItem struct {
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	Category   string `json:"category"`
+	FileURL    string `json:"fileURL"`
+	ImageURL   string `json:"imageURL"`
+	TargetFile string `json:"targetFile"`
+}
+
+var itemsDatabase = make(map[string][]OptimizationItem)
+
+type InstallRequest struct {
+	Slug     string `json:"slug"`
+	Mode     string `json:"mode"`
+	Category string `json:"category"`
+}
+
+type APIResponse struct {
+	OK        bool   `json:"ok"`
+	Error     string `json:"error,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Bytes     int64  `json:"bytes,omitempty"`
+	NeedAdmin bool   `json:"needAdmin,omitempty"`
+}
+
+type StatusRequest struct {
+	Mode  string   `json:"mode"`
+	Files []string `json:"files"`
+}
+
+type StatusResponse struct {
+	Exists map[string]bool `json:"exists"`
+}
+
+// --- 主要程式邏輯 ---
+
+func decrypt(encodedData, key string) (string, error) {
+	encrypted, err := base64.StdEncoding.DecodeString(encodedData)
+	if err != nil {
+		return "", fmt.Errorf("base64解碼失敗: %w", err)
+	}
+	keyBytes := []byte(key)
+	decrypted := make([]byte, len(encrypted))
+	for i := 0; i < len(encrypted); i++ {
+		decrypted[i] = encrypted[i] ^ keyBytes[i%len(keyBytes)]
+	}
+	return string(decrypted), nil
+}
+
+func fetchItemsFromServer() error {
+	realURL, err := decrypt(encryptedURL, encryptionKey)
+	if err != nil {
+		return fmt.Errorf("無法解密URL: %w", err)
+	}
+	logger.Println("正在從伺服器獲取最新項目列表...")
+	client := http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(realURL)
+	if err != nil {
+		return fmt.Errorf("無法請求項目列表: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("伺服器回應錯誤狀態: %s", resp.Status)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&itemsDatabase); err != nil {
+		return fmt.Errorf("解析項目列表 JSON 失敗: %w", err)
+	}
+	totalItems := 0
+	for _, items := range itemsDatabase {
+		totalItems += len(items)
+	}
+	logger.Printf("成功從伺服器獲取 %d 個項目。", totalItems)
+	return nil
+}
+
+func fetchStaticAssets() error {
+	logger.Println("正在從伺服器獲取前端介面檔案...")
+	var wg sync.WaitGroup
+	errChan := make(chan error, 3)
+	wg.Add(3)
+
+	cacheBuster := fmt.Sprintf("?v=%d", time.Now().Unix())
+
+	go func() {
+		defer wg.Done()
+		var err error
+		indexHTML, err = downloadFile(remoteIndexURL + cacheBuster)
+		if err != nil {
+			errChan <- fmt.Errorf("下載 index.html 失敗: %w", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		styleCSS, err = downloadFile(remoteStyleURL + cacheBuster)
+		if err != nil {
+			errChan <- fmt.Errorf("下載 style.css 失敗: %w", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		scriptJS, err = downloadFile(remoteScriptURL + cacheBuster)
+		if err != nil {
+			errChan <- fmt.Errorf("下載 script.js 失敗: %w", err)
+		}
+	}()
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+	}
+	logger.Println("前端介面檔案獲取成功。")
+	return nil
+}
+
+func downloadFile(url string) ([]byte, error) {
+	client := http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("伺服器回應錯誤狀態: %s", resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func main() {
+	logger.Println("正在啟動 TWLoaderWeb 伺服器...")
+	if err := fetchItemsFromServer(); err != nil {
+		logger.Fatalf("初始化失敗，無法獲取優化項目列表: %v", err)
+	}
+	if err := fetchStaticAssets(); err != nil {
+		logger.Fatalf("初始化失敗，無法獲取前端介面檔案: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", serveIndex)
+	mux.HandleFunc("GET /static/style.css", serveCSS)
+	mux.HandleFunc("GET /static/script.js", serveJS)
+	mux.HandleFunc("GET /api/items/{category}", handleGetItems)
+	mux.HandleFunc("POST /api/install", handleInstall)
+	mux.HandleFunc("POST /api/uninstall", handleUninstall)
+	mux.HandleFunc("POST /api/quit", handleQuit)
+	mux.HandleFunc("POST /api/status", handleGetStatus)
+	if runtime.GOOS == "windows" {
+		mux.HandleFunc("POST /api/relaunch-admin", handleRelaunchAdmin)
+	}
+
+	server := &http.Server{
+		Addr:         serverAddr,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	go func() {
+		logger.Printf("伺服器正在監聽 http://%s\n", serverAddr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatalf("無法啟動伺服器: %v", err)
+		}
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+	openBrowser(fmt.Sprintf("http://%s", serverAddr))
+	select {}
+}
+
+// --- HTTP 處理器 (Handlers) ---
+
+func handleGetItems(w http.ResponseWriter, r *http.Request) {
+	category := r.PathValue("category")
+	items, ok := itemsDatabase[category]
+	if !ok {
+		writeJSONError(w, http.StatusNotFound, "找不到類別: %s", category)
+		return
+	}
+
+	// 建立一個淨化過的副本，用於傳送給前端，保護真實 URL
+	sanitizedItems := make([]OptimizationItem, len(items))
+	for i, item := range items {
+		sanitizedItems[i] = item
+		sanitizedItems[i].FileURL = "" // 將真實 URL 移除
+	}
+
+	writeJSON(w, http.StatusOK, sanitizedItems)
+}
+
+func handleInstall(w http.ResponseWriter, r *http.Request) {
+	installMutex.Lock()
+	defer installMutex.Unlock()
+	var req InstallRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "無效的請求內容: %v", err)
+		return
+	}
+	item, found := findItemBySlugAndCategory(req.Category, req.Slug)
+	if !found {
+		writeJSONError(w, http.StatusNotFound, "在類別 '%s' 中找不到 slug 為 '%s' 的項目。", req.Category, req.Slug)
+		return
+	}
+	targetDir, err := resolveTargetDir(req.Mode)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	err = os.MkdirAll(targetDir, 0755)
+	if err != nil {
+		if os.IsPermission(err) {
+			writeJSON(w, http.StatusForbidden, APIResponse{
+				OK:        false,
+				NeedAdmin: true,
+				Error:     fmt.Sprintf("權限不足，無法寫入 %s。請以系統管理員身分執行此程式。", targetDir),
+			})
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, "無法建立目錄 '%s': %v", targetDir, err)
+		return
+	}
+	finalPath := filepath.Join(targetDir, item.TargetFile)
+	logger.Printf("開始安裝 '%s' 到 '%s'", item.Name, finalPath)
+	data, err := downloadWithRetries(r.Context(), item.FileURL)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "下載 '%s' 失敗: %v", item.Name, err)
+		return
+	}
+	tempFile, err := os.CreateTemp(targetDir, "dl_*.tmp")
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "無法建立暫存檔: %v", err)
+		return
+	}
+	defer os.Remove(tempFile.Name())
+	bytesWritten, err := tempFile.Write(data)
+	if err != nil {
+		tempFile.Close()
+		writeJSONError(w, http.StatusInternalServerError, "寫入暫存檔失敗: %v", err)
+		return
+	}
+	tempFile.Close()
+	if err := os.Rename(tempFile.Name(), finalPath); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "覆蓋最終檔案失敗: %v", err)
+		return
+	}
+	logger.Printf("成功安裝 '%s' (%d bytes) 到 %s", item.Name, int64(bytesWritten), finalPath)
+	writeJSON(w, http.StatusOK, APIResponse{
+		OK:    true,
+		Path:  finalPath,
+		Bytes: int64(bytesWritten),
+	})
+}
+
+func handleGetStatus(w http.ResponseWriter, r *http.Request) {
+	var req StatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "無效的狀態請求: %v", err)
+		return
+	}
+	targetDir, err := resolveTargetDir(req.Mode)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	statusMap := make(map[string]bool)
+	for _, file := range req.Files {
+		filePath := filepath.Join(targetDir, file)
+		if _, err := os.Stat(filePath); err == nil {
+			statusMap[file] = true
+		} else {
+			statusMap[file] = false
+		}
+	}
+	writeJSON(w, http.StatusOK, StatusResponse{Exists: statusMap})
+}
+
+func handleQuit(w http.ResponseWriter, r *http.Request) {
+	logger.Println("接收到結束信號，正在關閉伺服器...")
+	w.WriteHeader(http.StatusOK)
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(0)
+	}()
+}
+
+func handleUninstall(w http.ResponseWriter, r *http.Request) {
+	installMutex.Lock()
+	defer installMutex.Unlock()
+	var req InstallRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "無效的請求內容: %v", err)
+		return
+	}
+	item, found := findItemBySlugAndCategory(req.Category, req.Slug)
+	if !found {
+		writeJSONError(w, http.StatusNotFound, "在類別 '%s' 中找不到 slug 為 '%s' 的項目。", req.Category, req.Slug)
+		return
+	}
+	targetDir, err := resolveTargetDir(req.Mode)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	filePath := filepath.Join(targetDir, item.TargetFile)
+	logger.Printf("準備移除檔案: %s", filePath)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		logger.Printf("檔案不存在，視為移除成功: %s", filePath)
+		writeJSON(w, http.StatusOK, APIResponse{OK: true, Path: filePath})
+		return
+	}
+	err = os.Remove(filePath)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "移除檔案失敗: %v", err)
+		return
+	}
+	logger.Printf("成功移除檔案: %s", filePath)
+	writeJSON(w, http.StatusOK, APIResponse{OK: true, Path: filePath})
+}
+
+func serveIndex(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(indexHTML)
+}
+
+func serveCSS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	w.Write(styleCSS)
+}
+
+func serveJS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	w.Write(scriptJS)
+}
+
+func handleRelaunchAdmin(w http.ResponseWriter, r *http.Request) {
+	if runtime.GOOS != "windows" {
+		writeJSONError(w, http.StatusNotImplemented, "此功能僅適用於 Windows。")
+		return
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "找不到執行檔路徑: %v", err)
+		return
+	}
+	cmd := exec.Command("powershell", "-Command", "Start-Process", "-FilePath", `"`+executable+`"`, "-Verb", "RunAs")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	logger.Println("正在嘗試以系統管理員身分重啟...")
+	if err := cmd.Start(); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "執行提權命令失敗: %v", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, APIResponse{OK: true})
+	go func() {
+		time.Sleep(1 * time.Second)
+		os.Exit(0)
+	}()
+}
+
+func downloadWithRetries(ctx context.Context, url string) ([]byte, error) {
+	var body []byte
+	var lastErr error
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: connectTimeout,
+			}).DialContext,
+		},
+		Timeout: requestTimeout,
+	}
+	for i := 0; i <= maxRetries; i++ {
+		if i > 0 {
+			delay := time.Duration(i) * retryBaseDelay
+			logger.Printf("將在 %v 後重試下載 %s... (嘗試 %d/%d)", delay, url, i+1, maxRetries+1)
+			time.Sleep(delay)
+		}
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			lastErr = fmt.Errorf("無法建立請求: %w", err)
+			continue
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("HTTP 請求失敗: %w", err)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("不正確的狀態碼: %s", resp.Status)
+			continue
+		}
+		body, err = io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("讀取回應內容失敗: %w", err)
+			continue
+		}
+		return body, nil
+	}
+	return nil, fmt.Errorf("在 %d 次重試後仍然失敗: %w", maxRetries, lastErr)
+}
+
+func resolveTargetDir(mode string) (string, error) {
+	switch mode {
+	case "plus":
+		return baseDirPlus, nil
+	case "plusup":
+		return baseDirPlusUP, nil
+	default:
+		return "", fmt.Errorf("無效的模式: '%s'", mode)
+	}
+}
+
+func findItemBySlugAndCategory(category, slug string) (OptimizationItem, bool) {
+	categoryItems, ok := itemsDatabase[category]
+	if !ok {
+		return OptimizationItem{}, false
+	}
+	for _, item := range categoryItems {
+		if item.Slug == slug {
+			return item, true
+		}
+	}
+	return OptimizationItem{}, false
+}
+
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		logger.Printf("編碼 JSON 回應時發生錯誤: %v", err)
+	}
+}
+
+func writeJSONError(w http.ResponseWriter, status int, format string, args ...interface{}) {
+	errMsg := fmt.Sprintf(format, args...)
+	logger.Println("錯誤:", errMsg)
+	writeJSON(w, status, APIResponse{OK: false, Error: errMsg})
+}

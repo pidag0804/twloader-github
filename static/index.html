@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TWLoader 啟動器</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div id="home-view">
+        <header class="home-header">
+            <h1>TWLoader 啟動器</h1>
+            <p class="subtitle"> </p>
+        </header>
+
+        <div id="path-config-area" class="path-config-area" style="display: none;">
+            <p id="path-message"></p>
+            <div class="path-buttons">
+                <button id="select-path-button">選擇路徑</button>
+                <button id="reset-path-button">重設路徑</button>
+            </div>
+        </div>
+
+        <div class="home-grid">
+            <div class="home-card" id="launch-plus-card" style="display: none;">
+                <h2>啟動 Plus 模式</h2>
+                <p>點啟動之後會執行一般模式</p>
+                <div class="home-card-actions">
+                    <button class="launch-button" data-mode="plus">啟動</button>
+                    <button class="update-button" data-mode="plus">檢查更新</button>
+                </div>
+            </div>
+
+            <div class="home-card" id="launch-plusup-card" style="display: none;">
+                <h2>啟動 BeatUP 模式</h2>
+                <p>點啟動之後會執行 BeatUP 模式</p>
+                <div class="home-card-actions">
+                    <button class="launch-button" data-mode="plusup">啟動</button>
+                    <button class="update-button" data-mode="plusup">檢查更新</button>
+                </div>
+            </div>
+
+            <div class="home-card" id="install-optimizations-card" style="display: none;">
+                <h2>安裝優化項目</h2>
+                <p>可選擇房間、P線等優化安裝</p>
+                <div class="home-card-actions">
+                    <button id="go-to-optimize-view" class="primary-action-button">進入</button>
+                </div>
+            </div>
+
+            <div class="home-card">
+                <h2>解析度設定</h2>
+                <p>調整遊戲解析度、視窗模式及其他相關設定。</p>
+                <div class="home-card-actions">
+                    <button id="go-to-resolution-view" class="primary-action-button">調整解析度</button>
+                </div>
+            </div>
+             <div class="home-card">
+                <h2>揪咖一起玩</h2>
+                <p>可以發布消息讓在聊天室中找人一起玩。</p>
+                <div class="home-card-actions">
+                    <button id="go-to-chat-view" class="primary-action-button">進入</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="announcement-container">
+            <div id="announcement-category">公告</div>
+            <div id="announcement-title">新增房間背景</div>
+            <div id="announcement-content">新增一款情人節應景的房間背景樣式<br>感興趣的可以到優化安裝選項內去安裝。</div>
+        </div>
+    </div>
+
+    <div id="optimize-view" style="display: none;">
+        <header>
+            <button id="back-to-home-button">&larr; 返回主畫面</button>
+            <h1>優化項目安裝</h1>
+            <div class="mode-selector">
+                <input type="radio" id="mode-plus" name="mode" value="plus" checked>
+                <label for="mode-plus">Plus</label>
+                <input type="radio" id="mode-plusup" name="mode" value="plusup">
+                <label for="mode-plusup">PlusUP</label>
+            </div>
+            <div id="target-path-display">目標路徑: 尚未設定</div>
+        </header>
+        <nav class="tabs">
+            <button class="tab-link active" data-category="room">房間優化</button>
+            <button class="tab-link" data-category="gui">介面優化</button>
+            <button class="tab-link" data-category="scene">場景優化</button>
+            <button class="tab-link" data-category="beatup">BeatUP模式專用</button>
+            <button class="tab-link" data-category="black-tech">黑科技</button>
+        </nav>
+        <main id="card-grid" class="card-grid"></main>
+    </div>
+    
+    <div id="resolution-view" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>解析度設定</h2>
+                <button id="close-resolution-view" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">視窗模式</label>
+                    <div class="radio-group">
+                        <input type="radio" id="winMode1" name="winMode" value="1"><label for="winMode1">視窗</label>
+                        <input type="radio" id="winMode0" name="winMode" value="0"><label for="winMode0">全螢幕</label>
+                        <input type="radio" id="winMode2" name="winMode" value="2"><label for="winMode2">4:3全螢幕</label>
+                    </div>
+                </div>
+                <div class="form-group" id="resolution-select-group">
+                    <label for="resolution-select" class="form-label">解析度</label>
+                    <select id="resolution-select">
+                        <option value="800x600">800 x 600</option>
+                        <option value="1024x768" selected>1024 x 768</option>
+                        <option value="1280x720">1280 x 720 (720p)</option>
+                        <option value="1280x960">1280 x 960</option>
+                        <option value="1366x768">1366 x 768</option>
+                        <option value="1600x900">1600 x 900</option>
+                        <option value="1920x1080">1920 x 1080 (1080p)</option>
+                    </select>
+                </div>
+                <div class="info-text">
+                    注意：選擇全螢幕開啟遊戲後 , 在按鍵盤F4按鍵即可全螢幕
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-resolution-button" class="primary-action-button">儲存設定</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="chat-view" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>揪咖一起玩</h2>
+                <button id="close-chat-view" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <aside class="chat-sidebar">
+                    <div class="form-group">
+                        <h3>個人設定</h3>
+                        <label for="chat-nickname" class="form-label">暱稱</label>
+                        <input type="text" id="chat-nickname" class="team-up-form input">
+                        
+                        <label for="chat-avatar" class="form-label">頭像 URL</label>
+                        <input type="text" id="chat-avatar" class="team-up-form input">
+                        
+                        <div class="radio-group" style="margin-top: 10px;">
+                            <input type="checkbox" id="chat-hide-avatar"> <label for="chat-hide-avatar">隱藏頭像</label>
+                        </div>
+
+                        <label class="form-label" style="margin-top: 10px;">性別</label>
+                        <div class="radio-group">
+                            <input type="radio" id="gender-male" name="chat-gender" value="Male" checked><label for="gender-male">男</label>
+                            <input type="radio" id="gender-female" name="chat-gender" value="Female"><label for="gender-female">女</label>
+                        </div>
+                        <button id="chat-update-profile" class="primary-action-button" style="width:100%; margin-top: 15px;">更新設定</button>
+                    </div>
+                    <h3>在線玩家 (<span id="chat-user-count">0</span>)</h3>
+                    <ul id="chat-users"></ul>
+                </aside>
+                <main class="chat-main">
+                    <div id="chat-messages"></div>
+                    <div class="chat-input-area">
+                        <div class="team-up-form">
+                            <input type="text" id="chat-message-input" placeholder="在這裡輸入訊息..." style="flex-grow: 1;">
+                            <button id="chat-send-button" class="primary-action-button">傳送</button>
+                        </div>
+                        </main>
+            </div>
+        </div>
+    </div>
+
+
+    <template id="card-template">
+        <div class="card">
+            <div class="card-image-container">
+                <img src="" alt="" class="card-thumb">
+            </div>
+            <div class="card-body">
+                <h3 class="card-title">Item Name</h3>
+                <div class="card-actions">
+                    <button class="install-button">
+                        <span class="btn-text">安裝</span>
+                        <div class="spinner" style="display: none;"></div>
+                    </button>
+                    <button class="uninstall-button" style="display: none;">
+                        <span class="btn-text">移除</span>
+                        <div class="spinner" style="display: none;"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <div id="preview-panel">
+        <img id="preview-image" src="" alt="Preview">
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
