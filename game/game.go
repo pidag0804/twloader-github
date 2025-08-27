@@ -23,8 +23,8 @@ import (
 const (
 	auditionRegistryPath = `SOFTWARE\Wow6432Node\HappyTuk\Audition`
 	gamePatchInfoURL     = "http://auditionpatch.mangot5.com//audition_patch/patch/live/audition/package/PackageInfo.txt"
-	// DefaultBaseDir is the default installation root directory for TWLoader
-	DefaultBaseDir = `C:\Program Files (x86)\TWLoader`
+	// DefaultBaseDir is the default installation root directory for TWLoader.
+	DefaultBaseDir = `C:\Program Files (x86)\TWLoader` // 修正路徑錯字 (x88 -> x86)
 )
 
 type UpdateInfo struct {
@@ -147,7 +147,7 @@ func GetInstallPath() (string, error) {
 
 // SetupGamePathLink reads the game's full executable path from the registry
 // and writes it to SavePrev.txt in the Plus and PlusUP directories.
-func SetupGamePathLink() error { // <-- Returns an error
+func SetupGamePathLink() error {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
@@ -155,28 +155,30 @@ func SetupGamePathLink() error { // <-- Returns an error
 
 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, auditionRegistryPath, registry.QUERY_VALUE)
 	if err != nil {
-		log.Printf("Could not open registry key (Audition may not be installed): %v", err)
-		return nil // Not a fatal error, just return
+		logger.Printf("Could not open registry key (Audition may not be installed): %v", err)
+		return nil // Not a fatal error, just return.
 	}
 	defer key.Close()
 
 	installPath, _, err := key.GetStringValue("installpath")
 	if err != nil {
-		log.Printf("Could not read 'installpath' value from registry: %v", err)
-		return nil // Not a fatal error, just return
+		logger.Printf("Could not read 'installpath' value from registry: %v", err)
+		return nil // Not a fatal error, just return.
 	}
+
 	executeName, _, err := key.GetStringValue("EXECUTE")
 	if err != nil {
-		log.Printf("Could not read 'EXECUTE' value from registry: %v", err)
-		return nil // Not a fatal error, just return
+		logger.Printf("Warning: Could not read 'EXECUTE' from registry. Using default 'Audition.exe'. Error: %v", err)
+		executeName = "Audition.exe"
 	}
+
 	if installPath == "" || executeName == "" {
-		log.Println("Registry values for 'installpath' or 'EXECUTE' are empty. Aborting setup.")
+		logger.Println("Registry values for 'installpath' or 'EXECUTE' are empty. Aborting setup.")
 		return nil
 	}
 
 	fullGamePath := filepath.Join(installPath, executeName)
-	log.Printf("Successfully determined game executable path: %s", fullGamePath)
+	logger.Printf("Successfully determined game executable path: %s", fullGamePath)
 
 	targetDirs := []string{
 		filepath.Join(DefaultBaseDir, "Plus"),
@@ -184,19 +186,23 @@ func SetupGamePathLink() error { // <-- Returns an error
 	}
 
 	for _, dir := range targetDirs {
-		if _, err := os.Stat(dir); !os.IsNotExist(err) {
-			savePrevPath := filepath.Join(dir, "SavePrev.txt")
-			err := os.WriteFile(savePrevPath, []byte(fullGamePath), 0666)
-			if err != nil {
-				// Create and return a detailed error
-				detailedError := fmt.Errorf("failed to write SavePrev.txt (path: %s), system error: %w", savePrevPath, err)
-				log.Println(detailedError)
-				return detailedError
-			} else {
-				log.Printf("Successfully wrote game path to %s", savePrevPath)
-			}
+		// ==================== 修改開始 ====================
+		// 自動建立資料夾，如果資料夾已存在，這行程式碼不會做任何事也不會報錯
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			detailedError := fmt.Errorf("failed to create directory %s, system error: %w", dir, err)
+			logger.Println(detailedError)
+			return detailedError // 如果建立資料夾失敗，就返回錯誤
+		}
+		// ==================== 修改結束 ====================
+
+		savePrevPath := filepath.Join(dir, "SavePrev.txt")
+		err := os.WriteFile(savePrevPath, []byte(fullGamePath), 0666)
+		if err != nil {
+			detailedError := fmt.Errorf("failed to write SavePrev.txt (path: %s), system error: %w", savePrevPath, err)
+			logger.Println(detailedError)
+			return detailedError
 		} else {
-			log.Printf("Directory does not exist, skipping: %s", dir)
+			logger.Printf("Successfully wrote game path to %s", savePrevPath)
 		}
 	}
 	return nil // Return nil on success
@@ -227,7 +233,6 @@ func RunPatcher() error {
 		return fmt.Errorf("failed to launch patcher.exe: %w", err)
 	}
 
-	// After launching, assume the user will update, so reset the state.
 	go func() {
 		time.Sleep(5 * time.Second)
 		updateStateMutex.Lock()
@@ -241,7 +246,6 @@ func RunPatcher() error {
 
 // ResolveBasePath determines the base path to use for TWLoader.
 func ResolveBasePath() (string, error) {
-	// This function can be expanded to check for custom paths from a config file first.
 	if _, err := os.Stat(DefaultBaseDir); err == nil {
 		return DefaultBaseDir, nil
 	}
